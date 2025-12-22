@@ -1,0 +1,15 @@
+server/node_modules/
+server/package-lock.json
+
+**/__pycache__/
+*.pyc
+generator/venv/
+generator/.venv/
+
+*.dockerfile
+.env
+
+server/public/output.json
+example-schema.json
+
+server/test_servers/
