@@ -179,6 +179,7 @@ async function generate() {
     if (!name) {
       nameInput.classList.add("is-invalid");
       hasError=true;
+      output.textContent=`Error: Empty field name is not allowed`;
       return;
     } 
     else {
