@@ -160,11 +160,11 @@ http://localhost:3000
 python generator/main.py --schema path/to/schema.json --count 5 --api http://localhost:4000/test-api,http://localhost:5000/another-test-api
 ```
 #### Arguments
-```
---schema : Path to schema JSON file
---count : Number of objects to generate (default: 1)
---api    : Optional API endpoint to automatically POST generated data
-```
+`-s, --schema` : Path to schema JSON file (default: example-schema.json)  
+`-c, --count` : Number of objects to generate (default: 1)  
+`-a, --api` : API endpoints to send the generated data  
+`-S, --save` : Save output to a file (default: data-save.json)  
+`-n, --no-print` : Do not print generated data to stdout
 
 #### Input Schema Example
 ```
@@ -201,6 +201,51 @@ Access the application at:
 ```
 http://localhost:3000
 ```
+
+### 4. CLI Usage (pip install)
+
+Install the CLI via `pip`:
+
+```bash
+pip install mock-data-forge
+```
+
+#### Usage
+Generate data with default schema
+```bash
+mock-data
+```
+Specify a custom schema file
+```bash
+mock-data -s path/to/schema.json
+```
+Generate multiple objects
+```bash
+mock-data -c 10
+```
+Save output to a file
+```bash
+mock-data -S output.json
+```
+Send data to API endpoints
+```bash
+mock-data -a http://example.com/api1 http://example.com/api2
+```
+Combine options
+```bash
+mock-data -s schema.json -c 5 -S output.json -a http://example.com/api -n
+```
+
+- -n / --no-print prevents output from being printed to the console.
+
+#### Options:
+
+`-s, --schema` : Path to schema JSON file (default: example-schema.json)  
+`-c, --count` : Number of objects to generate (default: 1)  
+`-a, --api` : API endpoints to send the generated data  
+`-S, --save` : Save output to a file (default: data-save.json)  
+`-n, --no-print` : Do not print generated data to stdout
+
 
 ### Hosting Status
 Deployment Note:
