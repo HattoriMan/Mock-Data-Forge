@@ -3,7 +3,11 @@ import sys
 import argparse
 import os
 import requests
-from generator import generate_data
+from .generator import generate_data
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # Default schema with all types of fields and constraints
 DEFAULT_SCHEMA = {
@@ -49,20 +53,33 @@ DEFAULT_SCHEMA = {
     }
 }
 
-# Default schema file path
-default_schema_path = os.path.join(os.path.dirname(__file__), "..", "example-schema.json")
+# default_schema_path = os.path.join(os.getcwd(), "example-schema.json")
+# default_save_path = os.path.join(os.getcwd(), "data-save.json")
+
+repo_root = os.path.dirname(os.path.dirname(__file__))
+default_schema_path = os.path.join(repo_root, "example-schema.json")
+default_save_path = os.path.join(repo_root, "data-save.json")
+
+def positive_int(value):
+    try:
+        ivalue = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("count must be an integer")
+    if ivalue < 1:
+        raise argparse.ArgumentTypeError("count must be >= 1")
+    return ivalue
 
 def ensure_schema_file(path):
     if not os.path.exists(path):
         try:
             with open(path, "w") as f:
                 json.dump(DEFAULT_SCHEMA, f, indent=4)
-            print(f"File not found at {path}. Created example-schema.json.")
+            logger.info(f"File not found at {path}. Created example-schema.json.")
         except Exception as e:
-            print(f"Failed to create schema file: {e}", file=sys.stderr)
+            logger.error(f"Failed to create schema file: {e}")
             sys.exit(1)
     else:
-        print(f"Using existing schema file: {path}")
+        logger.info(f"Using existing schema file: {path}")
 
 def generate_multiple(schema, count):
     unique_tracker = {}
@@ -76,28 +93,42 @@ def send_to_apis(data, urls):
         try:
             response = requests.post(url, json=data)
             if response.status_code == 200:
-                print(f"Data successfully sent to {url}")
+                logger.info(f"Data successfully sent to {url}")
             else:
-                print(f"Failed to send data to {url}. Status code: {response.status_code}, Response: {response.text}")
+                logger.warning(f"Failed to send data to {url}. Status code: {response.status_code}, Response: {response.text}")
         except Exception as e:
-            print(f"Error sending data to {url}: {e}", file=sys.stderr)
+            logger.error(f"Error sending data to {url}: {e}")
 
-def run_from_stdin():
+def run_from_stdin(no_print=False, save=None, api=None):
     try:
         input_data = json.load(sys.stdin)
         schema = input_data["schema"]
         count = input_data.get("count", 1)
         data = generate_multiple(schema, count)
-        print(json.dumps(data))
+        if api:
+            send_to_apis(data, api)
+        if save:
+            with open(save, "w") as f:
+                json.dump(data, f, indent=4)
+            logger.info(f"Data saved to {save}")
+        if not no_print:
+            print(json.dumps(data))
     except Exception as e:
-        print("ERROR:", e, file=sys.stderr)
+        logger.error(e)
 
 def run_from_cli():
     parser = argparse.ArgumentParser(description="Mock Data Forge")
     parser.add_argument("-s", "--schema", type=str, default=default_schema_path, help="Path to schema JSON file (defaults to example-schema.json)")
-    parser.add_argument("-c", "--count", type=int, default=1, help="Number of objects to generate (defaults to 1)")
-    parser.add_argument("-a", "--api", type=str, help="Optional comma-separated API endpoints to send generated data, e.g., 'http://api1.com,http://api2.com'")
+    parser.add_argument("-c", "--count", type=positive_int, default=1, help="Number of objects to generate (defaults to 1)")
+    parser.add_argument("-a", "--api", nargs="*", help="API endpoints to send generated data to, e.g., http://api1.com http://api2.com")
+    parser.add_argument("-S", "--save", nargs="?", const=default_save_path, default=None, help="Save output to a file. Optional path (default: data-save.json)")
+    parser.add_argument("-n", "--no-print", action="store_true", help="Do not print generated data to stdout")
+
     args = parser.parse_args()
+
+    if args.api is not None and len(args.api) == 0:
+        logger.error("--api flag provided but no URLs given")
+        sys.exit(1)
 
     ensure_schema_file(args.schema)
 
@@ -105,20 +136,45 @@ def run_from_cli():
         with open(args.schema) as f:
             schema = json.load(f)
     except Exception as e:
-        print(f"Failed to read schema file: {e}", file=sys.stderr)
+        logger.error(f"Failed to read schema file: {e}")
         sys.exit(1)
 
     data = generate_multiple(schema, args.count)
-    print(json.dumps(data, indent=4))
+    if not args.no_print:
+        print(json.dumps(data, indent=4))
+
 
     # Sends to APIs if provided
     if args.api:
-        api_list = args.api.split(",")
-        send_to_apis(data, api_list)
+        send_to_apis(data, args.api)
+
+    # Save feature
+    if args.save:
+        try:
+            with open(args.save,'w') as f:
+                json.dump(data,f,indent=4)
+            logger.info(f"Data saved to {args.save}")
+        except Exception as e:
+            logger.error(f"Failed to write in save file: {e}")
+            sys.exit(1)
+
+    if args.no_print and not args.save and not args.api:
+        logger.warning("--no-print used with no --save or --api; output will be discarded")
+
 
 def main():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("-n", "--no-print", action="store_true")
+    parser.add_argument("-S", "--save", nargs="?", const=default_save_path)
+    parser.add_argument("-a", "--api", nargs="*")
+    args, _ = parser.parse_known_args()
+
     if not sys.stdin.isatty():
-        run_from_stdin()
+        run_from_stdin(
+            no_print=args.no_print,
+            save=args.save,
+            api=args.api
+        )
     else:
         run_from_cli()
 
